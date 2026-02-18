@@ -109,7 +109,7 @@ def get_hotel_class_single(name: str) -> dict:
 
     # Priority 2: STR_Chain_Scales
     brands2 = df_chain["Brand"].astype(str).tolist()
-    match_2 = difflib.get_close_matches(hotel_norm, [norm(b) for b in brands2], n=1, cutoff=0.8)
+    match_2 = difflib.get_close_matches(hotel_norm, [norm(b) for b in brands2], n=1, cutoff=0.9)
     if match_2:
         idx = [norm(b) for b in brands2].index(match_2[0])
         row = df_chain.iloc[idx]
@@ -127,7 +127,7 @@ def get_hotel_class_single(name: str) -> dict:
 
     # 3a: Franchise name
     franchises = df_franchise["Franchise"].astype(str).tolist()
-    match_3a = difflib.get_close_matches(hotel_norm, [norm(f) for f in franchises], n=1, cutoff=0.8)
+    match_3a = difflib.get_close_matches(hotel_norm, [norm(f) for f in franchises], n=1, cutoff=0.9)
     if match_3a:
         idx = [norm(f) for f in franchises].index(match_3a[0])
         row = df_franchise.iloc[idx]
@@ -149,7 +149,7 @@ def get_hotel_class_single(name: str) -> dict:
 
     # 3b: Parent company
     parents = df_franchise["Parent_Company"].astype(str).tolist()
-    match_3b = difflib.get_close_matches(hotel_norm, [norm(p) for p in parents], n=1, cutoff=0.8)
+    match_3b = difflib.get_close_matches(hotel_norm, [norm(p) for p in parents], n=1, cutoff=0.9)
     if match_3b:
         parent_norm = match_3b[0]
         parent_rows = df_franchise[[norm(p) == parent_norm for p in parents]]
@@ -241,6 +241,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
