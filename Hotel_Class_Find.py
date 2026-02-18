@@ -57,9 +57,11 @@ def try_match_brand_once(name_norm: str):
         )
         return sub_candidates.sort_values("_len", ascending=False).iloc[0].drop(labels="_len")
 
-    # fuzzy
+        # fuzzy – stricter for single-word names
     norm_list = brand_norms.tolist()
-    matches = difflib.get_close_matches(name_norm, norm_list, n=1, cutoff=0.85)
+    cutoff = 0.9 if " " in name_norm else 0.95  # higher for one-word strings
+
+    matches = difflib.get_close_matches(name_norm, norm_list, n=1, cutoff=cutoff)
     if matches:
         idx = norm_list.index(matches[0])
         return df_class.iloc[idx]
@@ -241,6 +243,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
