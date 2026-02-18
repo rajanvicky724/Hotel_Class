@@ -82,8 +82,8 @@ def match_hotel_class_row_with_trimming(hotel_name: str):
     if row is not None:
         return row
 
-    # 2) trim from the right: drop last word, then last 2, etc.
-    for cut in range(len(words) - 1, 0, -1):
+    # 2) trim from the right, but keep at least 2 words.
+    for cut in range(len(words) - 1, 1, -1):  # was range(len(words) - 1, 0, -1)
         shortened = " ".join(words[:cut])
         row = try_match_brand_once(shortened)
         if row is not None:
@@ -241,6 +241,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
