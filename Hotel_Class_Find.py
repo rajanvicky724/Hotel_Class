@@ -35,21 +35,74 @@ CLASS_MAP = {
 def norm(s: str) -> str:
     return s.strip().lower()
 
+def try_match_brand_once(name_norm: str):
+    """Single pass of brand matching on a normalized string."""
+    brands = df_class["Hotel_Flag_Brand"].astype(str)
+    brand_norms = brands.str.lower()
+
+    # exact
+    exact_mask = brand_norms.eq(name_norm)
+    if exact_mask.any():
+        return df_class[exact_mask].iloc[0]
+
+    # substring
+    sub_mask = brand_norms.apply(lambda b: b in name_norm)
+    sub_candidates = df_class[sub_mask]
+    if len(sub_candidates) == 1:
+        return sub_candidates.iloc[0]
+    if len(sub_candidates) > 1:
+        # pick longest brand as most specific
+        sub_candidates = sub_candidates.assign(
+            _len=sub_candidates["Hotel_Flag_Brand"].astype(str).str.len()
+        )
+        return sub_candidates.sort_values("_len", ascending=False).iloc[0].drop(labels="_len")
+
+    # fuzzy
+    norm_list = brand_norms.tolist()
+    matches = difflib.get_close_matches(name_norm, norm_list, n=1, cutoff=0.85)
+    if matches:
+        idx = norm_list.index(matches[0])
+        return df_class.iloc[idx]
+
+    return None
+
+
+def match_hotel_class_row_with_trimming(hotel_name: str):
+    """
+    Priority 1: try full name; if no hit, progressively trim words
+    from the right and retry before giving up.
+    """
+    name_norm = norm(hotel_name)
+    words = name_norm.split()
+    if not words:
+        return None
+
+    # 1) full name
+    row = try_match_brand_once(name_norm)
+    if row is not None:
+        return row
+
+    # 2) trim from the right: drop last word, then last 2, etc.
+    for cut in range(len(words) - 1, 0, -1):
+        shortened = " ".join(words[:cut])
+        row = try_match_brand_once(shortened)
+        if row is not None:
+            return row
+
+    return None
+
 def get_hotel_class_single(name: str) -> dict:
     hotel_norm = norm(name)
 
-    # Priority 1: Hotel_Class_Flag
-    brands = df_class["Hotel_Flag_Brand"].astype(str).tolist()
-    match_1 = difflib.get_close_matches(hotel_norm, [norm(b) for b in brands], n=1, cutoff=0.8)
-    if match_1:
-        idx = [norm(b) for b in brands].index(match_1[0])
-        row = df_class.iloc[idx]
-        class_text = row["Hotel_Class_Text"]
+        # Priority 1: Hotel_Class_Flag with trimming
+    row1 = match_hotel_class_row_with_trimming(name)
+    if row1 is not None:
+        class_text = row1["Hotel_Class_Text"]
         class_num = CLASS_MAP.get(class_text, None)
         return {
             "input_name": name,
             "matched_source": "Hotel_Class_Flag",
-            "matched_key": row["Hotel_Flag_Brand"],
+            "matched_key": row1["Hotel_Flag_Brand"],
             "class_text": class_text,
             "class_num": class_num,
         }
@@ -188,5 +241,6 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
