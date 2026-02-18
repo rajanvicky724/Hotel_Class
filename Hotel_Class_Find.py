@@ -150,7 +150,7 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
 if uploaded_file is not None:
     try:
-        df_input = pd.read_excel(uploaded_file)
+        df_input = pd.read_excel(uploaded_file, engine="openpyxl")
     except Exception as e:
         st.error(f"Error reading Excel file: {e}")
         st.stop()
@@ -188,3 +188,4 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
