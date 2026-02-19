@@ -1,6 +1,5 @@
 import pandas as pd
 import io
-import difflib  # still imported but not used for matching now
 
 # ============= 1) EMBEDDED DATA =============
 # Keep your full HOTEL_CLASS_FLAG_DATA, STR_CHAIN_SCALES_DATA,
@@ -128,10 +127,14 @@ def get_hotel_class_single(name: str) -> dict:
 
     # ===== Priority 2: STR_Chain_Scales (strict exact + substring) =====
     brands2 = df_chain["Brand"].astype(str)
-    brand_norms2 = brands2.str.lower()
+    brand_norms2 = brands2.str.lower()\
+
+    # relaxed versions without trailing 's'
+    hotel_relaxed = strip_trailing_s(hotel_norm)
+    brand_relaxed2 = brand_norms2.apply(strip_trailing_s)
 
     # exact on full name
-    exact_mask2 = brand_norms2.eq(hotel_norm)
+    exact_mask2 = brand_norms2.eq(hotel_norm)  | brand_relaxed2.eq(hotel_relaxed)
     if exact_mask2.any():
         row = df_chain[exact_mask2].iloc[0]
         class_text = row["Chain_Scale"]
@@ -145,7 +148,8 @@ def get_hotel_class_single(name: str) -> dict:
         }
 
     # substring: STR brand appears inside hotel name
-    sub_mask2 = brand_norms2.apply(lambda b: b in hotel_norm)
+    sub_mask2 = brand_norms2.apply(lambda b: b in hotel_norm) | \
+    brand_relaxed2.apply(lambda b: b in hotel_relaxed)
     sub_candidates2 = df_chain[sub_mask2]
     if len(sub_candidates2) == 1:
         row = sub_candidates2.iloc[0]
@@ -179,9 +183,11 @@ def get_hotel_class_single(name: str) -> dict:
     # 3a: Franchise name
     franchises = df_franchise["Franchise"].astype(str)
     fran_norms = franchises.str.lower()
+    fran_relaxed = fran_norms.apply(strip_trailing_s)
+    hotel_relaxed = strip_trailing_s(hotel_norm)
 
     # exact match
-    exact_mask3 = fran_norms.eq(hotel_norm)
+    exact_mask3 = fran_norms.eq(hotel_norm) | fran_relaxed.eq(hotel_relaxed)
     if exact_mask3.any():
         row = df_franchise[exact_mask3].iloc[0]
         class_text = row["Chain_Scale_Segment"]
@@ -204,7 +210,8 @@ def get_hotel_class_single(name: str) -> dict:
         }
 
     # substring on Franchise
-    sub_mask3 = fran_norms.apply(lambda f: f in hotel_norm)
+    sub_mask3 = fran_norms.apply(lambda f: f in hotel_norm) | \
+    fran_relaxed.apply(lambda f: f in hotel_relaxed)
     sub_candidates3 = df_franchise[sub_mask3]
     if len(sub_candidates3) == 1:
         row = sub_candidates3.iloc[0]
@@ -353,6 +360,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
