@@ -1,5 +1,6 @@
 import pandas as pd
 import io
+import difflib
 
 # ============= 1) EMBEDDED DATA =============
 # Keep your full HOTEL_CLASS_FLAG_DATA, STR_CHAIN_SCALES_DATA,
@@ -338,6 +339,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
