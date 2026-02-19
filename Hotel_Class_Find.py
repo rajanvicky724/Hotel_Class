@@ -52,36 +52,67 @@ def strip_trailing_s(word: str) -> str:
     parts[-1] = last
     return " ".join(parts)
 
+def normalize_flag_pattern(s: str) -> str:
+    """
+    For patterns like 'AC Hotels by Marriott':
+    - drop the 'by ...' tail
+    - strip trailing 's' on last word
+    So 'AC Hotels by Marriott' -> 'ac hotel'
+    """
+    base = s.split(" by ")[0]   # keep part before 'by'
+    base = strip_trailing_s(base)
+    return base
+
+
+def normalize_flag_pattern(s: str) -> str:
+    """
+    For flags like 'AC Hotels by Marriott':
+    - take part before 'by'
+    - remove trailing 's' on last word
+    Example: 'AC Hotels by Marriott' -> 'ac hotel'
+    """
+    s_low = s.strip().lower()
+    base = s_low.split(" by ")[0]
+    base = strip_trailing_s(base)
+    return base
+
 def try_match_brand_once(name_norm: str):
-    """Single pass of brand matching on a normalized string (no fuzzy cross‑brand)."""
+    """Single pass of brand matching on a normalized string (no fuzzy)."""
     brands = df_class["Hotel_Flag_Brand"].astype(str)
     brand_norms = brands.str.lower()
 
-    # relaxed versions without trailing 's' on last word
+    # input variants
     name_relaxed = strip_trailing_s(name_norm)
-    brand_relaxed = brand_norms.apply(strip_trailing_s)
 
-    # 1) exact
-    exact_mask = brand_norms.eq(name_norm) | (brand_relaxed.eq(name_relaxed))
+    # brand variants
+    brand_relaxed = brand_norms.apply(strip_trailing_s)
+    brand_patterns = brand_norms.apply(normalize_flag_pattern)
+
+    # 1) exact match (any normalized form)
+    exact_mask = (
+        brand_norms.eq(name_norm) |
+        brand_relaxed.eq(name_relaxed) |
+        brand_patterns.eq(name_relaxed)
+    )
     if exact_mask.any():
         return df_class[exact_mask].iloc[0]
 
-    # 2) substring: brand appears inside the hotel name
-    sub_mask = brand_norms.apply(lambda b: b in name_norm) | \
-               brand_relaxed.apply(lambda b: b in name_relaxed)
+    # 2) substring: brand (or pattern) appears inside hotel name
+    sub_mask = (
+        brand_norms.apply(lambda b: b in name_norm) |
+        brand_relaxed.apply(lambda b: b in name_relaxed) |
+        brand_patterns.apply(lambda b: b in name_relaxed)
+    )
     sub_candidates = df_class[sub_mask]
     if len(sub_candidates) == 1:
         return sub_candidates.iloc[0]
     if len(sub_candidates) > 1:
-        # pick longest brand as most specific
         sub_candidates = sub_candidates.assign(
             _len=sub_candidates["Hotel_Flag_Brand"].astype(str).str.len()
         )
         return sub_candidates.sort_values("_len", ascending=False).iloc[0].drop(labels="_len")
 
-    # 3) no fuzzy; if nothing, return None
     return None
-
 
 def match_hotel_class_row_with_trimming(hotel_name: str):
     """
@@ -360,6 +391,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
