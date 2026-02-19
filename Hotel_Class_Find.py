@@ -168,8 +168,10 @@ def get_hotel_class_single(name: str) -> dict:
         }
 
     # substring: STR brand appears inside hotel name
-    sub_mask2 = brand_norms2.apply(lambda b: b in hotel_norm) 
-    | brand_relaxed2.apply(lambda b: b in hotel_relaxed)
+    sub_mask2 = (
+        brand_norms2.apply(lambda b: b in hotel_norm)
+        | brand_relaxed2.apply(lambda b: b in hotel_relaxed)
+    )   
     sub_candidates2 = df_chain[sub_mask2]
     if len(sub_candidates2) == 1:
         row = sub_candidates2.iloc[0]
@@ -380,6 +382,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
