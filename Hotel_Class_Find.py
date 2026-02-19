@@ -132,29 +132,28 @@ def match_hotel_class_row_with_trimming(hotel_name: str):
 def get_hotel_class_single(name: str) -> dict:
     hotel_norm = norm(name)
 
-    # ===== Priority 1: Hotel Class table (strict, with trimming) =====
-    row1 = match_hotel_class_row_with_trimming(name)
-    if row1 is not None:
-        class_text = row1["Hotel_Class_Text"]
+    # ===== Priority 1: Hotel_Class_Flag (fuzzy kept here if you want) =====
+    brands = df_class["Hotel_Flag_Brand"].astype(str).tolist()
+    match_1 = difflib.get_close_matches(hotel_norm, [norm(b) for b in brands], n=1, cutoff=0.9)
+    if match_1:
+        idx = [norm(b) for b in brands].index(match_1[0])
+        row = df_class.iloc[idx]
+        class_text = row["Hotel_Class_Text"]
         class_num = CLASS_MAP.get(class_text, None)
         return {
             "input_name": name,
             "matched_source": "Hotel_Class_Flag",
-            "matched_key": row1["Hotel_Flag_Brand"],
+            "matched_key": row["Hotel_Flag_Brand"],
             "class_text": class_text,
             "class_num": class_num,
         }
 
-    # ===== Priority 2: STR_Chain_Scales (strict exact + substring) =====
+    # ===== Priority 2: STR_Chain_Scales (STRICT: no fuzzy) =====
     brands2 = df_chain["Brand"].astype(str)
-    brand_norms2 = brands2.str.lower()\
+    brand_norms2 = brands2.str.lower()
 
-    # relaxed versions without trailing 's'
-    hotel_relaxed = strip_trailing_s(hotel_norm)
-    brand_relaxed2 = brand_norms2.apply(strip_trailing_s)
-
-    # exact on full name
-    exact_mask2 = brand_norms2.eq(hotel_norm)  | brand_relaxed2.eq(hotel_relaxed)
+    # exact
+    exact_mask2 = brand_norms2.eq(hotel_norm)
     if exact_mask2.any():
         row = df_chain[exact_mask2].iloc[0]
         class_text = row["Chain_Scale"]
@@ -167,29 +166,20 @@ def get_hotel_class_single(name: str) -> dict:
             "class_num": class_num,
         }
 
-    # substring: STR brand appears inside hotel name
-    sub_mask2 = (
-        brand_norms2.apply(lambda b: b in hotel_norm)
-        | brand_relaxed2.apply(lambda b: b in hotel_relaxed)
-    )   
+    # substring: brand inside hotel name
+    sub_mask2 = brand_norms2.apply(lambda b: b in hotel_norm)
     sub_candidates2 = df_chain[sub_mask2]
     if len(sub_candidates2) == 1:
         row = sub_candidates2.iloc[0]
-        class_text = row["Chain_Scale"]
-        class_num = CLASS_MAP.get(class_text, None)
-        return {
-            "input_name": name,
-            "matched_source": "STR_Chain_Scales",
-            "matched_key": row["Brand"],
-            "class_text": class_text,
-            "class_num": class_num,
-        }
     elif len(sub_candidates2) > 1:
-        # longest brand wins
         sub_candidates2 = sub_candidates2.assign(
             _len=sub_candidates2["Brand"].astype(str).str.len()
         )
         row = sub_candidates2.sort_values("_len", ascending=False).iloc[0].drop(labels="_len")
+    else:
+        row = None
+
+    if row is not None:
         class_text = row["Chain_Scale"]
         class_num = CLASS_MAP.get(class_text, None)
         return {
@@ -200,20 +190,14 @@ def get_hotel_class_single(name: str) -> dict:
             "class_num": class_num,
         }
 
-    # ===== Priority 3: Franchise table (strict) =====
-
-    # 3a: Franchise name
+    # ===== Priority 3: Franchise (STRICT: no fuzzy) =====
     franchises = df_franchise["Franchise"].astype(str)
     fran_norms = franchises.str.lower()
-    fran_relaxed = fran_norms.apply(strip_trailing_s)
-    hotel_relaxed = strip_trailing_s(hotel_norm)
 
-    # exact match
-    exact_mask3 = fran_norms.eq(hotel_norm) | fran_relaxed.eq(hotel_relaxed)
+    exact_mask3 = fran_norms.eq(hotel_norm)
     if exact_mask3.any():
         row = df_franchise[exact_mask3].iloc[0]
         class_text = row["Chain_Scale_Segment"]
-
         lt = norm(class_text)
         if lt == "upper-upscale":
             class_text_norm = "Upper Upscale"
@@ -221,7 +205,6 @@ def get_hotel_class_single(name: str) -> dict:
             class_text_norm = "Upper Midscale"
         else:
             class_text_norm = class_text
-
         class_num = CLASS_MAP.get(class_text_norm, None)
         return {
             "input_name": name,
@@ -231,16 +214,17 @@ def get_hotel_class_single(name: str) -> dict:
             "class_num": class_num,
         }
 
-    # substring on Franchise
-    sub_mask3 = (
-        fran_norms.apply(lambda f: f in hotel_norm)
-        | fran_relaxed.apply(lambda f: f in hotel_relaxed)
-    )    
+    sub_mask3 = fran_norms.apply(lambda f: f in hotel_norm)
     sub_candidates3 = df_franchise[sub_mask3]
-    if len(sub_candidates3) == 1:
-        row = sub_candidates3.iloc[0]
+    if not sub_candidates3.empty:
+        if len(sub_candidates3) > 1:
+            sub_candidates3 = sub_candidates3.assign(
+                _len=sub_candidates3["Franchise"].astype(str).str.len()
+            )
+            row = sub_candidates3.sort_values("_len", ascending=False).iloc[0].drop(labels="_len")
+        else:
+            row = sub_candidates3.iloc[0]
         class_text = row["Chain_Scale_Segment"]
-
         lt = norm(class_text)
         if lt == "upper-upscale":
             class_text_norm = "Upper Upscale"
@@ -248,31 +232,6 @@ def get_hotel_class_single(name: str) -> dict:
             class_text_norm = "Upper Midscale"
         else:
             class_text_norm = class_text
-
-        class_num = CLASS_MAP.get(class_text_norm, None)
-        return {
-            "input_name": name,
-            "matched_source": "Franchise_Report",
-            "matched_key": row["Franchise"],
-            "class_text": class_text_norm,
-            "class_num": class_num,
-        }
-    elif len(sub_candidates3) > 1:
-        # choose the longest franchise name (most specific)
-        sub_candidates3 = sub_candidates3.assign(
-            _len=sub_candidates3["Franchise"].astype(str).str.len()
-        )
-        row = sub_candidates3.sort_values("_len", ascending=False).iloc[0].drop(labels="_len")
-        class_text = row["Chain_Scale_Segment"]
-
-        lt = norm(class_text)
-        if lt == "upper-upscale":
-            class_text_norm = "Upper Upscale"
-        elif lt.startswith("upper-midscale"):
-            class_text_norm = "Upper Midscale"
-        else:
-            class_text_norm = class_text
-
         class_num = CLASS_MAP.get(class_text_norm, None)
         return {
             "input_name": name,
@@ -282,16 +241,13 @@ def get_hotel_class_single(name: str) -> dict:
             "class_num": class_num,
         }
 
-    # 3b: Parent company
+    # 3b: Parent company (keep or remove as you like; it’s not causing NH/ME/Z)
     parents = df_franchise["Parent_Company"].astype(str)
     parent_norms = parents.str.lower()
-
-    # exact on parent name
     exact_mask3b = parent_norms.eq(hotel_norm)
     if exact_mask3b.any():
         parent_rows = df_franchise[exact_mask3b]
     else:
-        # substring: parent company appears in hotel name
         sub_mask3b = parent_norms.apply(lambda p: p in hotel_norm)
         parent_rows = df_franchise[sub_mask3b]
 
@@ -304,7 +260,6 @@ def get_hotel_class_single(name: str) -> dict:
             class_text_norm = "Upper Midscale"
         else:
             class_text_norm = class_mode
-
         class_num = CLASS_MAP.get(class_text_norm, None)
         return {
             "input_name": name,
@@ -314,7 +269,7 @@ def get_hotel_class_single(name: str) -> dict:
             "class_num": class_num,
         }
 
-    # ===== Not found =====
+    # Not found
     return {
         "input_name": name,
         "matched_source": "Not_Found",
@@ -322,7 +277,6 @@ def get_hotel_class_single(name: str) -> dict:
         "class_text": None,
         "class_num": None,
     }
-
 
 def classify_hotels_from_series(hotel_series: pd.Series) -> pd.DataFrame:
     results = []
@@ -384,6 +338,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
