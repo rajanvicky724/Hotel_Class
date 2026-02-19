@@ -52,17 +52,6 @@ def strip_trailing_s(word: str) -> str:
     parts[-1] = last
     return " ".join(parts)
 
-def normalize_flag_pattern(s: str) -> str:
-    """
-    For patterns like 'AC Hotels by Marriott':
-    - drop the 'by ...' tail
-    - strip trailing 's' on last word
-    So 'AC Hotels by Marriott' -> 'ac hotel'
-    """
-    base = s.split(" by ")[0]   # keep part before 'by'
-    base = strip_trailing_s(base)
-    return base
-
 
 def normalize_flag_pattern(s: str) -> str:
     """
@@ -179,7 +168,7 @@ def get_hotel_class_single(name: str) -> dict:
         }
 
     # substring: STR brand appears inside hotel name
-    sub_mask2 = brand_norms2.apply(lambda b: b in hotel_norm) | \
+    sub_mask2 = brand_norms2.apply(lambda b: b in hotel_norm)  \
     brand_relaxed2.apply(lambda b: b in hotel_relaxed)
     sub_candidates2 = df_chain[sub_mask2]
     if len(sub_candidates2) == 1:
@@ -241,7 +230,7 @@ def get_hotel_class_single(name: str) -> dict:
         }
 
     # substring on Franchise
-    sub_mask3 = fran_norms.apply(lambda f: f in hotel_norm) | \
+    sub_mask3 = fran_norms.apply(lambda f: f in hotel_norm) \
     fran_relaxed.apply(lambda f: f in hotel_relaxed)
     sub_candidates3 = df_franchise[sub_mask3]
     if len(sub_candidates3) == 1:
@@ -391,6 +380,7 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
 
 
