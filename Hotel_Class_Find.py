@@ -36,18 +36,40 @@ def norm(s: str) -> str:
 
 
 # -------- Priority 1 helpers: Hotel Class table --------
+def strip_trailing_s(word: str) -> str:
+    """
+    Remove a trailing 's' or '’s from the last word only.
+    Examples: 'hotels' -> 'hotel', 'men's' stays 'men's'.
+    """
+    w = word.strip().lower()
+    parts = w.split()
+    if not parts:
+        return w
+
+    last = parts[-1]
+    if last.endswith("s") and len(last) > 3:
+        # basic plural to singular (hotels -> hotel, suites -> suite)
+        last = last[:-1]
+    parts[-1] = last
+    return " ".join(parts)
+
 def try_match_brand_once(name_norm: str):
     """Single pass of brand matching on a normalized string (no fuzzy cross‑brand)."""
     brands = df_class["Hotel_Flag_Brand"].astype(str)
     brand_norms = brands.str.lower()
 
+    # relaxed versions without trailing 's' on last word
+    name_relaxed = strip_trailing_s(name_norm)
+    brand_relaxed = brand_norms.apply(strip_trailing_s)
+
     # 1) exact
-    exact_mask = brand_norms.eq(name_norm)
+    exact_mask = brand_norms.eq(name_norm) | (brand_relaxed.eq(name_relaxed))
     if exact_mask.any():
         return df_class[exact_mask].iloc[0]
 
     # 2) substring: brand appears inside the hotel name
-    sub_mask = brand_norms.apply(lambda b: b in name_norm)
+    sub_mask = brand_norms.apply(lambda b: b in name_norm) | \
+               brand_relaxed.apply(lambda b: b in name_relaxed)
     sub_candidates = df_class[sub_mask]
     if len(sub_candidates) == 1:
         return sub_candidates.iloc[0]
@@ -331,4 +353,5 @@ if uploaded_file is not None:
         )
 else:
     st.info("Please upload an Excel file to begin.")
+
 
